@@ -34,6 +34,20 @@ kb ask "why did we choose graphql?"
 | `kb trace <id> [depth]` | DFS reasoning tree (cycle-safe) |
 | `kb why <id>` | Graph-grounded synthesis (Claude, or deterministic fallback) |
 | `kb path <a> <b>` | BFS shortest path between two nodes |
+| `kb export` | Dump corpus + edges to `argos-ui/public/graph.json` |
+
+## Galaxy View (Web UI)
+
+Force-directed visualization of the graph. Local only — no backend.
+
+```bash
+kb export                                # writes argos-ui/public/graph.json
+cd argos-ui && npm install && npm run dev
+```
+
+Click a node for its full markdown + typed relations; click a related node to
+refocus. Edge thickness = confidence. Colors = node type. Runs entirely off
+the static JSON; re-run `kb export` after every `kb index`.
 
 ## How it works
 

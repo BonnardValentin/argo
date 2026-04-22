@@ -11,8 +11,9 @@ into a graph.
 **Step 3 — Redis vector index + `kb ask`.** Working; embedder swappable.
 **Step 4 — Hermes Linker (graph edges).** Working; LLM classifier with heuristic fallback; edges persist in `data/knowledge/_graph/edges.json`.
 **Step 5 — Graph CLI (`kb graph / trace / why / path`).** Working; offline traversal + optional Claude synthesis for `kb why`.
+**Step 6 — Galaxy View (web UI).** Working; Vite + React + react-force-graph-2d; reads static `graph.json` produced by `kb export`.
 
-Next steps (not built yet): web UI, LLM answer synthesis for `kb ask`.
+Next steps (not built yet): LLM answer synthesis for `kb ask`.
 
 ## Layout
 

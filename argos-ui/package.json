@@ -1,0 +1,22 @@
+{
+  "name": "argos-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Local force-directed visualization for the Argos knowledge graph",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-force-graph-2d": "^1.25.9",
+    "react-markdown": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

@@ -294,6 +294,79 @@ def _decision_preview(path: Path) -> str:
     return " ".join(non_blank)
 
 
+@app.command("export")
+def export_cmd(
+    out: Annotated[
+        Path,
+        typer.Option(
+            "-o",
+            "--out",
+            help="Output JSON path. Relative paths resolve against the project root.",
+        ),
+    ] = Path("argos-ui/public/graph.json"),
+) -> None:
+    """Export the corpus + graph as a single static JSON for the web UI.
+
+    Projection only — reads markdown + edges.json, writes one JSON. Does not
+    modify the knowledge system.
+    """
+    import json
+    from datetime import datetime, timezone
+
+    from argos.config import PROJECT_ROOT
+    from argos.linker import EdgeStore
+    from argos.local_index import list_nodes
+    from argos.reader import parse_file
+    from argos.utils import type_from_path
+
+    node_paths = list_nodes(settings.data_dir)
+    nodes_out: list[dict] = []
+    for path in node_paths:
+        try:
+            parsed = parse_file(path)
+        except (OSError, UnicodeDecodeError):
+            continue
+        nodes_out.append(
+            {
+                "id": path.stem,
+                "type": type_from_path(path),
+                "title": parsed.title,
+                "timestamp": parsed.timestamp.isoformat() if parsed.timestamp else None,
+                "content": parsed.body or parsed.raw,
+            }
+        )
+
+    edge_path = settings.data_dir / "_graph" / "edges.json"
+    edges_in = EdgeStore(edge_path).load()
+    edges_out = [
+        {
+            "source_id": e.source_id,
+            "target_id": e.target_id,
+            "type": e.type,
+            "confidence": e.confidence,
+            "reason": e.reason,
+        }
+        for e in edges_in
+    ]
+
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "node_count": len(nodes_out),
+        "edge_count": len(edges_out),
+        "nodes": nodes_out,
+        "edges": edges_out,
+    }
+
+    out_path = out if out.is_absolute() else (PROJECT_ROOT / out).resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    typer.echo(
+        f"exported {len(nodes_out)} node(s) + {len(edges_out)} edge(s) → {out_path}"
+    )
+
+
 @app.command("graph")
 def graph_cmd(
     node_id: Annotated[str, typer.Argument(help="Node id (exact, prefix, or substring)")],

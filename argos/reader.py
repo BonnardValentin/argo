@@ -12,6 +12,7 @@ class ParsedNode:
     sections: dict[str, str] = field(default_factory=dict)
     timestamp: datetime | None = None
     raw: str = ""
+    body: str = ""  # raw with YAML frontmatter stripped
 
 
 def parse_file(path: Path) -> ParsedNode:
@@ -36,6 +37,7 @@ def parse_file(path: Path) -> ParsedNode:
         sections=sections,
         timestamp=timestamp,
         raw=text,
+        body=body,
     )
 
 
