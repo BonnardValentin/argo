@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GraphView, { TYPE_COLORS } from './components/GraphView.jsx';
 import NodePanel from './components/NodePanel.jsx';
+import SequentialView from './components/SequentialView.jsx';
 import Toolbar from './components/Toolbar.jsx';
 import { loadGraph } from './graph/loader.js';
 import { buildAdjacency, toGraphData } from './graph/transform.js';
@@ -16,8 +17,9 @@ export default function App() {
   const [search, setSearch] = useState('');
   const searchInputRef = useRef(null);
 
-  // Viz state. Default 2D + lr + labels + no bloom — most readable starting point.
-  const [mode, setMode] = useState('2d');
+  // Viz state. Default "sequential" — layered DAG via dagre + ReactFlow.
+  // 2D/3D force-graph remain available as toggles.
+  const [mode, setMode] = useState('sequential');
   const [layout, setLayout] = useState('lr');
   const [showLabels, setShowLabels] = useState(true);
   const [bloom, setBloom] = useState(false);
@@ -153,16 +155,26 @@ export default function App() {
           />
         </div>
 
-        <GraphView
-          data={data}
-          mode={mode}
-          layout={layout}
-          showLabels={showLabels}
-          bloom={bloom}
-          onSelect={navigate}
-          selectedId={selectedId}
-          focusId={focusId}
-        />
+        {mode === 'sequential' ? (
+          <SequentialView
+            data={data}
+            direction={layout === 'td' ? 'TB' : 'LR'}
+            showLabels={showLabels}
+            onSelect={navigate}
+            selectedId={selectedId}
+          />
+        ) : (
+          <GraphView
+            data={data}
+            mode={mode}
+            layout={layout}
+            showLabels={showLabels}
+            bloom={bloom}
+            onSelect={navigate}
+            selectedId={selectedId}
+            focusId={focusId}
+          />
+        )}
 
         <div className="legend">
           {Object.entries(TYPE_COLORS).map(([type, color]) => (

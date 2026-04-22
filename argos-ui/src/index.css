@@ -313,3 +313,104 @@ body {
   font-size: 11px;
 }
 
+/* ---- Sequential view (ReactFlow) ---- */
+
+.react-flow {
+  background: #0f1115;
+}
+.react-flow__background {
+  background: #0f1115;
+}
+.react-flow__controls {
+  box-shadow: none !important;
+  background: rgba(26,29,38,0.92) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 6px !important;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: transparent !important;
+  border-bottom: 1px solid var(--panel-border) !important;
+  color: var(--muted) !important;
+  fill: currentColor;
+}
+.react-flow__controls-button:hover {
+  background: rgba(110,168,254,0.08) !important;
+  color: var(--fg) !important;
+}
+.react-flow__minimap {
+  border-radius: 6px !important;
+}
+.react-flow__attribution {
+  display: none !important;
+}
+
+/* Custom typed node card */
+.typed-node {
+  width: 240px;
+  min-height: 64px;
+  padding: 8px 12px 10px;
+  border-radius: 6px;
+  background: rgba(26,29,38,0.94);
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid #9ca3af;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  transition: border-color 90ms, background 90ms, opacity 90ms, transform 90ms;
+  cursor: pointer;
+  user-select: none;
+}
+.typed-node:hover {
+  border-color: var(--accent);
+  background: rgba(36,40,51,0.98);
+}
+.typed-node.selected {
+  border-color: var(--accent);
+  background: rgba(40,46,60,0.98);
+  box-shadow: 0 0 0 2px rgba(110,168,254,0.35);
+}
+.typed-node.dim {
+  opacity: 0.35;
+}
+.typed-node .tn-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.typed-node .tn-type {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+.typed-node .tn-id {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+.typed-node .tn-title {
+  font-size: 12.5px;
+  color: var(--fg);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rf-handle {
+  width: 8px !important;
+  height: 8px !important;
+  background: transparent !important;
+  border: 0 !important;
+  opacity: 0;
+}
+

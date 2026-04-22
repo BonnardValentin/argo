@@ -1,5 +1,17 @@
-// Floating bottom toolbar. Keep the state lifted in App.jsx; this is a
-// stateless view that just emits onChange callbacks.
+// Floating bottom toolbar. State lives in App.jsx; this is stateless.
+
+const MODE_OPTIONS = [
+  { id: 'sequential', label: 'sequential' },
+  { id: '2d', label: '2D' },
+  { id: '3d', label: '3D' },
+];
+
+// Layout choices depend on mode. Sequential supports LR/TB; the force
+// engines support the wider dagMode set plus an unconstrained "force" mode.
+const LAYOUTS_SEQ = [
+  { id: 'lr', label: 'left→right' },
+  { id: 'td', label: 'top↓down' },
+];
 
 const LAYOUTS_2D = [
   { id: 'force', label: 'force' },
@@ -8,7 +20,6 @@ const LAYOUTS_2D = [
   { id: 'radialout', label: 'radial' },
 ];
 
-// 3D has one extra mode that only makes sense in 3 dimensions.
 const LAYOUTS_3D = [
   ...LAYOUTS_2D,
   { id: 'zout', label: 'z-depth' },
@@ -42,28 +53,28 @@ export default function Toolbar({
   setBloom,
   stats,
 }) {
-  const layouts = mode === '3d' ? LAYOUTS_3D : LAYOUTS_2D;
+  const layouts =
+    mode === 'sequential' ? LAYOUTS_SEQ : mode === '3d' ? LAYOUTS_3D : LAYOUTS_2D;
 
   return (
     <div className="toolbar">
       <Segmented
-        options={[
-          { id: '2d', label: '2D' },
-          { id: '3d', label: '3D' },
-        ]}
+        options={MODE_OPTIONS}
         value={mode}
-        onChange={setMode}
+        onChange={(next) => {
+          setMode(next);
+          // Sequential only supports LR/TB — nudge the layout if the user
+          // had e.g. "radial" selected in a force mode.
+          if (next === 'sequential' && !['lr', 'td'].includes(layout)) {
+            setLayout('lr');
+          }
+        }}
         ariaLabel="Render mode"
       />
 
       <div className="tb-divider" />
 
-      <Segmented
-        options={layouts}
-        value={layout}
-        onChange={setLayout}
-        ariaLabel="Layout"
-      />
+      <Segmented options={layouts} value={layout} onChange={setLayout} ariaLabel="Layout" />
 
       <div className="tb-divider" />
 

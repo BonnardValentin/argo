@@ -10,11 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-force-graph-2d": "^1.25.9",
     "react-force-graph-3d": "^1.24.3",
     "react-markdown": "^9.0.1",
+    "reactflow": "^11.11.4",
     "three": "^0.170.0",
     "three-spritetext": "^1.9.4"
   },
