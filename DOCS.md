@@ -10,8 +10,9 @@ into a graph.
 **Step 2 — Local read commands (`kb show`, `kb recent`).** Working, stdlib-only.
 **Step 3 — Redis vector index + `kb ask`.** Working; embedder swappable.
 **Step 4 — Hermes Linker (graph edges).** Working; LLM classifier with heuristic fallback; edges persist in `data/knowledge/_graph/edges.json`.
+**Step 5 — Graph CLI (`kb graph / trace / why / path`).** Working; offline traversal + optional Claude synthesis for `kb why`.
 
-Next steps (not built yet): `kb graph`, web UI, LLM answer synthesis for `kb ask`.
+Next steps (not built yet): web UI, LLM answer synthesis for `kb ask`.
 
 ## Layout
 
@@ -30,6 +31,7 @@ argos/
 │   ├── indexer.py           # Redis FT vector index + linker orchestration
 │   ├── search.py            # embed query + KNN search
 │   ├── linker.py            # Hermes: typed edges (LLM or heuristic)
+│   ├── graph.py             # GraphLoader, Navigator (BFS/DFS), GraphCLI
 │   └── cli.py               # `kb` entrypoint
 └── data/knowledge/          # markdown (canonical source of truth)
     ├── decisions/
@@ -179,6 +181,59 @@ pick: 2
 
 `kb recent` uses the `timestamp:` field from each file's frontmatter, falling
 back to filesystem mtime when the field is missing or unparseable.
+
+### Graph exploration (step 5)
+
+Four terminal commands over the edges produced by the linker. No Redis, no
+network required (except `kb why` when Claude is configured).
+
+```bash
+kb graph <id>                    # immediate neighborhood, grouped by direction
+kb trace <id> [depth]            # DFS tree of outgoing edges (default depth 2)
+kb trace <id> 3 --direction both # walk both directions; arrows disambiguate
+kb why <id>                      # 2-4 sentence synthesis from graph context
+kb path <id_a> <id_b>            # BFS shortest path (undirected by default)
+kb path a b --directed           # respect edge direction
+```
+
+**Traversal algorithm.** `kb trace` uses iterative DFS with a shared `visited`
+set across the whole tree: a repeat-visit yields a `(↩ cycle)` leaf instead of
+recursing. Children at each level are sorted by `(type, target_id, source_id)`
+so output is stable across runs. `kb path` uses standard BFS; without
+`--directed`, each edge is walked in both directions (connectivity search),
+otherwise only source→target. The rendered chain preserves each edge's actual
+direction in the arrows (`—[type]→` for forward, `←[type]—` for backward).
+
+**`kb why` synthesis.** The graph module never calls an LLM itself — `cli.py`
+injects a `synth_fn` only when `ANTHROPIC_API_KEY` is set. The system prompt
+is scoped tightly: *use only information present in the provided material, do
+not invent relationships*. Without a key, a deterministic bullet summary is
+printed instead (same data, no prose).
+
+Example:
+
+```
+$ kb graph graphql
+Node: decision-graphql-api
+  title: Use GraphQL for the public API
+  type:  decision
+
+OUTGOING:
+  caused_by → meeting-api-roadmap  (conf 0.83)
+
+INCOMING:
+  depends_on ← meeting-api-roadmap  (conf 0.87)
+
+$ kb trace graphql 2
+decision-graphql-api
+└── caused_by meeting-api-roadmap
+    └── depends_on decision-graphql-api  (↩ cycle)
+
+$ kb path cache-redis incident
+decision-cache-redis —[related_to]→ incident-queue-saturation
+
+1 hop(s)
+```
 
 ## Design notes
 

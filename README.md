@@ -30,6 +30,10 @@ kb ask "why did we choose graphql?"
 | `kb show <id>` | Pretty-print a node (substring match, picker on ambiguity) |
 | `kb index` | Embed nodes into Redis + run the Hermes linker |
 | `kb ask "..."` | Semantic KNN search |
+| `kb graph <id>` | Node + immediate edges, grouped by direction |
+| `kb trace <id> [depth]` | DFS reasoning tree (cycle-safe) |
+| `kb why <id>` | Graph-grounded synthesis (Claude, or deterministic fallback) |
+| `kb path <a> <b>` | BFS shortest path between two nodes |
 
 ## How it works
 
@@ -48,5 +52,5 @@ step-by-step rationale.
 
 ## Status
 
-Working end-to-end through step 4 (linker). Deferred: `kb graph` renderer, web
-UI, LLM answer synthesis for `kb ask`.
+Working end-to-end through step 5 (graph CLI). Deferred: web UI, LLM answer
+synthesis for `kb ask`.

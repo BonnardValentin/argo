@@ -12,6 +12,7 @@ from rich.table import Table
 from argos import indexer as redis_indexer
 from argos.config import settings
 from argos.extraction.extractor import Extractor
+from argos.graph import Graph, GraphCLI, GraphLoader, GraphNavigator
 from argos.ingestion.github import GitHubIngestor
 from argos.linker import EdgeStore, get_linker
 from argos.local_index import load_index, recent as indexer_recent
@@ -291,6 +292,156 @@ def _decision_preview(path: Path) -> str:
     decision = node.sections.get("Decision", "")
     non_blank = [line.strip() for line in decision.splitlines() if line.strip()]
     return " ".join(non_blank)
+
+
+@app.command("graph")
+def graph_cmd(
+    node_id: Annotated[str, typer.Argument(help="Node id (exact, prefix, or substring)")],
+) -> None:
+    """Show a node and its immediate graph neighborhood."""
+    cli_helper = _make_graph_cli()
+    resolved = _resolve_node_or_exit(cli_helper.graph, node_id)
+    for line in cli_helper.render_graph(resolved):
+        typer.echo(line)
+
+
+@app.command("trace")
+def trace_cmd(
+    node_id: Annotated[str, typer.Argument(help="Node id (exact, prefix, or substring)")],
+    depth: Annotated[int, typer.Argument(help="Traversal depth")] = 2,
+    direction: Annotated[
+        str,
+        typer.Option(
+            "--direction", "-d",
+            help="outgoing | incoming | both",
+        ),
+    ] = "outgoing",
+) -> None:
+    """Recursively traverse the graph and show a reasoning tree."""
+    if direction not in ("outgoing", "incoming", "both"):
+        typer.echo("--direction must be one of: outgoing, incoming, both", err=True)
+        raise typer.Exit(code=2)
+    cli_helper = _make_graph_cli()
+    resolved = _resolve_node_or_exit(cli_helper.graph, node_id)
+    for line in cli_helper.render_trace(resolved, depth=depth, direction=direction):
+        typer.echo(line)
+
+
+@app.command("why")
+def why_cmd(
+    node_id: Annotated[str, typer.Argument(help="Node id (exact, prefix, or substring)")],
+) -> None:
+    """Explain a node using its graph context.
+
+    Uses Claude to synthesize a short explanation when ANTHROPIC_API_KEY is
+    set. Falls back to a deterministic bullet summary otherwise.
+    """
+    cli_helper = _make_graph_cli()
+    resolved = _resolve_node_or_exit(cli_helper.graph, node_id)
+    synth_fn = _build_why_synth_fn()
+    for line in cli_helper.explain_why(resolved, synth_fn=synth_fn):
+        typer.echo(line)
+
+
+@app.command("path")
+def path_cmd(
+    node_a: Annotated[str, typer.Argument(help="Start node")],
+    node_b: Annotated[str, typer.Argument(help="End node")],
+    directed: Annotated[
+        bool,
+        typer.Option(
+            "--directed/--undirected",
+            help="Respect edge direction (default: undirected)",
+        ),
+    ] = False,
+) -> None:
+    """Find the shortest relationship path between two nodes (BFS)."""
+    cli_helper = _make_graph_cli()
+    a = _resolve_node_or_exit(cli_helper.graph, node_a)
+    b = _resolve_node_or_exit(cli_helper.graph, node_b)
+    for line in cli_helper.find_path(a, b, directed=directed):
+        typer.echo(line)
+
+
+def _make_graph_cli() -> GraphCLI:
+    loader = GraphLoader(settings.data_dir)
+    graph = loader.load()
+    return GraphCLI(graph, GraphNavigator(graph))
+
+
+def _resolve_node_or_exit(graph: Graph, query: str) -> str:
+    if query in graph.nodes:
+        return query
+    matches = graph.resolve(query)
+    if not matches:
+        typer.echo(f"no node matching '{query}'", err=True)
+        raise typer.Exit(code=1)
+    if len(matches) == 1:
+        return matches[0]
+    typer.echo(f"{len(matches)} matches:", err=True)
+    for i, m in enumerate(matches, 1):
+        typer.echo(f"  [{i}] {m}", err=True)
+    try:
+        raw = input("pick: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        typer.echo("", err=True)
+        raise typer.Exit(code=1)
+    try:
+        idx = int(raw) - 1
+        if not 0 <= idx < len(matches):
+            raise IndexError
+    except (ValueError, IndexError):
+        typer.echo("invalid choice", err=True)
+        raise typer.Exit(code=1)
+    return matches[idx]
+
+
+def _build_why_synth_fn():
+    """Return a synth callable when Claude is available; None otherwise."""
+    key = settings.anthropic_api_key
+    if not key:
+        return None
+
+    import os
+    from anthropic import Anthropic
+
+    model = os.getenv("ARGOS_WHY_MODEL") or settings.extraction_model
+    client = Anthropic(api_key=key)
+
+    system = (
+        "You are the Argos graph synthesizer. You will be given:\n"
+        "  1. A SUBJECT knowledge node with its context, decision, rationale.\n"
+        "  2. The neighbors connected to it by typed edges (incoming + outgoing).\n"
+        "\n"
+        "Write a concise 2-4 sentence explanation in plain prose covering:\n"
+        "  - why this node exists,\n"
+        "  - what influenced it (from incoming edges),\n"
+        "  - what it impacts or depends on (from outgoing edges).\n"
+        "\n"
+        "Strict rules:\n"
+        "- Use ONLY information explicitly present in the provided material.\n"
+        "- Do NOT invent relationships, motivations, or facts.\n"
+        "- If incoming is empty, do not speculate about origin.\n"
+        "- If outgoing is empty, do not speculate about impact.\n"
+        "- If context is sparse, say so plainly; do not fill the gap.\n"
+        "- Plain prose only. No bullet lists, no headers, no edge-type labels."
+    )
+
+    def synth(context: str) -> str:
+        resp = client.messages.create(
+            model=model,
+            max_tokens=512,
+            temperature=0,
+            system=system,
+            messages=[{"role": "user", "content": context}],
+        )
+        chunks: list[str] = []
+        for block in resp.content:
+            if getattr(block, "type", None) == "text":
+                chunks.append(block.text)
+        return "\n".join(chunks).strip()
+
+    return synth
 
 
 if __name__ == "__main__":
