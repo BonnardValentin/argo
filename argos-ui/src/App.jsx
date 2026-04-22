@@ -8,6 +8,10 @@ import { buildAdjacency, toGraphData } from './graph/transform.js';
 
 const HISTORY_CAP = 20;
 
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export default function App() {
   const [raw, setRaw] = useState(null);
   const [error, setError] = useState(null);
@@ -15,6 +19,7 @@ export default function App() {
   const [focusId, setFocusId] = useState(null);
   const [history, setHistory] = useState([]); // stack of visited ids, current at end
   const [search, setSearch] = useState('');
+  const [activeResult, setActiveResult] = useState(0);
   const searchInputRef = useRef(null);
 
   // Viz state. Default "sequential" — layered DAG via dagre + ReactFlow.
@@ -103,15 +108,62 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedId, goBack, closePanel, focusSearch]);
 
-  const handleSearchKey = (e) => {
-    if (e.key !== 'Enter' || !search.trim() || !data) return;
+  // Ranked search: titles rank above ids, starts-with above contains-substring,
+  // exact above everything. Returns up to 8 matches.
+  const searchResults = useMemo(() => {
+    if (!search.trim() || !data) return [];
     const q = search.trim().toLowerCase();
-    const match =
-      data.nodes.find((n) => n.id.toLowerCase() === q) ||
-      data.nodes.find((n) => n.id.toLowerCase().startsWith(q)) ||
-      data.nodes.find((n) => n.id.toLowerCase().includes(q)) ||
-      data.nodes.find((n) => n.name.toLowerCase().includes(q));
-    if (match) navigate(match.id);
+    const scored = [];
+    for (const n of data.nodes) {
+      const title = (n.name || '').toLowerCase();
+      const id = n.id.toLowerCase();
+      let score = 0;
+      if (title === q || id === q) score = 1000;
+      else if (title.startsWith(q)) score = 600;
+      else if (id.startsWith(q)) score = 450;
+      else if (new RegExp(`\\b${escapeRegex(q)}`).test(title)) score = 400; // word boundary
+      else if (title.includes(q)) score = 250;
+      else if (id.includes(q)) score = 100;
+      if (score > 0) scored.push({ n, score });
+    }
+    scored.sort(
+      (a, b) => b.score - a.score || a.n.name.localeCompare(b.n.name)
+    );
+    return scored.slice(0, 8).map((s) => s.n);
+  }, [search, data]);
+
+  useEffect(() => {
+    setActiveResult(0);
+  }, [searchResults]);
+
+  const pickResult = (node) => {
+    navigate(node.id);
+    setSearch('');
+    searchInputRef.current?.blur();
+  };
+
+  const handleSearchKey = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveResult((i) => Math.min(i + 1, Math.max(searchResults.length - 1, 0)));
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveResult((i) => Math.max(i - 1, 0));
+      return;
+    }
+    if (e.key === 'Enter') {
+      const pick = searchResults[activeResult];
+      if (pick) pickResult(pick);
+      return;
+    }
+    if (e.key === 'Escape') {
+      if (search) {
+        e.stopPropagation();
+        setSearch('');
+      }
+    }
   };
 
   if (error) {
@@ -148,11 +200,45 @@ export default function App() {
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="search  —  press /  or  Enter to focus"
+            placeholder="search  —  press /  to focus,  ↑↓  to pick,  Enter"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={handleSearchKey}
           />
+          {search && (
+            <div className="search-results">
+              {searchResults.length === 0 ? (
+                <div className="search-result empty">
+                  no match for <code>{search}</code>
+                </div>
+              ) : (
+                searchResults.map((n, i) => (
+                  <div
+                    key={n.id}
+                    className={`search-result ${i === activeResult ? 'active' : ''}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      pickResult(n);
+                    }}
+                    onMouseEnter={() => setActiveResult(i)}
+                  >
+                    <span
+                      className="sr-type"
+                      style={{ color: TYPE_COLORS[n.group] || 'var(--muted)' }}
+                    >
+                      {n.group}
+                    </span>
+                    <span className="sr-title" title={n.name}>
+                      {n.name}
+                    </span>
+                    <span className="sr-id" title={n.id}>
+                      {n.id.split('--')[0]}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {mode === 'sequential' ? (
