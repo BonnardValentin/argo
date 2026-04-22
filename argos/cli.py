@@ -207,6 +207,8 @@ def index_cmd(
     if link:
         linker = get_linker()
         edge_store = EdgeStore(settings.data_dir / "_graph" / "edges.json")
+        if reset and edge_store.path.exists():
+            edge_store.path.unlink()
 
     try:
         result = redis_indexer.build(
