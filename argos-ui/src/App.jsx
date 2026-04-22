@@ -1,22 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GraphView, { TYPE_COLORS } from './components/GraphView.jsx';
 import NodePanel from './components/NodePanel.jsx';
 import Toolbar from './components/Toolbar.jsx';
 import { loadGraph } from './graph/loader.js';
 import { buildAdjacency, toGraphData } from './graph/transform.js';
 
+const HISTORY_CAP = 20;
+
 export default function App() {
   const [raw, setRaw] = useState(null);
   const [error, setError] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [focusId, setFocusId] = useState(null);
+  const [history, setHistory] = useState([]); // stack of visited ids, current at end
   const [search, setSearch] = useState('');
+  const searchInputRef = useRef(null);
 
-  // Viz state.
-  const [mode, setMode] = useState('2d');        // "2d" | "3d"
-  const [layout, setLayout] = useState('lr');    // "force" | "lr" | "td" | "radialout" | "zout"
+  // Viz state. Default 2D + lr + labels + no bloom — most readable starting point.
+  const [mode, setMode] = useState('2d');
+  const [layout, setLayout] = useState('lr');
   const [showLabels, setShowLabels] = useState(true);
-  const [bloom, setBloom] = useState(true);
+  const [bloom, setBloom] = useState(false);
 
   useEffect(() => {
     loadGraph()
@@ -31,14 +35,73 @@ export default function App() {
   const outgoing = (selectedId && adj?.out.get(selectedId)) || [];
   const incoming = (selectedId && adj?.inc.get(selectedId)) || [];
 
-  const navigate = (id) => {
+  // navigate(): push onto history (unless revisiting the head), focus the camera.
+  const navigate = useCallback((id) => {
     setSelectedId(id);
     setFocusId(id);
-    // Reset so selecting the same node again still retriggers the recenter.
+    setHistory((h) => {
+      const tail = h[h.length - 1];
+      if (tail === id) return h;
+      const next = [...h, id];
+      return next.slice(-HISTORY_CAP);
+    });
+    // Reset focusId so re-selecting the same node retriggers the recenter.
     setTimeout(() => setFocusId(null), 50);
-  };
+  }, []);
 
-  const handleSearch = (e) => {
+  const goBack = useCallback(() => {
+    setHistory((h) => {
+      if (h.length < 2) return h;
+      const next = h.slice(0, -1);
+      const target = next[next.length - 1];
+      setSelectedId(target);
+      setFocusId(target);
+      setTimeout(() => setFocusId(null), 50);
+      return next;
+    });
+  }, []);
+
+  const closePanel = useCallback(() => {
+    setSelectedId(null);
+    setHistory([]);
+  }, []);
+
+  const focusSearch = useCallback(() => {
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+  }, []);
+
+  // Keyboard: `/` focus search, `Escape` close panel / blur search,
+  // `Backspace` go back one hop (when not typing).
+  useEffect(() => {
+    const isTyping = (el) =>
+      el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+
+    const onKey = (ev) => {
+      const typing = isTyping(document.activeElement);
+      if (ev.key === '/' && !typing) {
+        ev.preventDefault();
+        focusSearch();
+        return;
+      }
+      if (ev.key === 'Escape') {
+        if (typing) {
+          document.activeElement.blur();
+          return;
+        }
+        if (selectedId) closePanel();
+        return;
+      }
+      if ((ev.key === 'Backspace' || ev.key === 'u') && !typing && selectedId) {
+        ev.preventDefault();
+        goBack();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedId, goBack, closePanel, focusSearch]);
+
+  const handleSearchKey = (e) => {
     if (e.key !== 'Enter' || !search.trim() || !data) return;
     const q = search.trim().toLowerCase();
     const match =
@@ -81,11 +144,12 @@ export default function App() {
       <div className="graph-pane">
         <div className="search-bar">
           <input
+            ref={searchInputRef}
             type="text"
-            placeholder="search — press Enter to focus"
+            placeholder="search  —  press /  or  Enter to focus"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={handleSearch}
+            onKeyDown={handleSearchKey}
           />
         </div>
 
@@ -95,7 +159,7 @@ export default function App() {
           layout={layout}
           showLabels={showLabels}
           bloom={bloom}
-          onSelect={setSelectedId}
+          onSelect={navigate}
           selectedId={selectedId}
           focusId={focusId}
         />
@@ -107,6 +171,9 @@ export default function App() {
               {type}
             </div>
           ))}
+          <div className="legend-hint">
+            <kbd>/</kbd> search · <kbd>⌫</kbd> back · <kbd>esc</kbd> close
+          </div>
         </div>
 
         <Toolbar
@@ -128,8 +195,10 @@ export default function App() {
           outgoing={outgoing}
           incoming={incoming}
           nodes={data.nodes}
+          historyDepth={history.length}
           onNavigate={navigate}
-          onClose={() => setSelectedId(null)}
+          onBack={goBack}
+          onClose={closePanel}
         />
       )}
     </div>

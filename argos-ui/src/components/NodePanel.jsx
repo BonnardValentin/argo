@@ -66,7 +66,9 @@ export default function NodePanel({
   outgoing,
   incoming,
   nodes,
+  historyDepth = 0,
   onNavigate,
+  onBack,
   onClose,
 }) {
   if (!node) return null;
@@ -78,9 +80,28 @@ export default function NodePanel({
 
   return (
     <aside className="node-panel">
-      <button className="close-btn" onClick={onClose} aria-label="Close">
-        ×
-      </button>
+      <div className="panel-header">
+        {historyDepth > 1 && (
+          <button
+            type="button"
+            className="nav-btn"
+            onClick={onBack}
+            title="Back (Backspace)"
+            aria-label="Back"
+          >
+            ← back
+          </button>
+        )}
+        <button
+          type="button"
+          className="close-btn"
+          onClick={onClose}
+          aria-label="Close (Esc)"
+          title="Close (Esc)"
+        >
+          ×
+        </button>
+      </div>
       <h1>{node.name}</h1>
       <div className="meta">
         {node.group}

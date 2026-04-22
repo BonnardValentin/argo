@@ -72,6 +72,23 @@ body {
   margin-right: 6px;
   vertical-align: middle;
 }
+.legend-hint {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+.legend-hint kbd {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  padding: 0 5px;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--fg);
+}
 
 .node-panel {
   width: 420px;
@@ -172,17 +189,37 @@ body {
   letter-spacing: 0.05em;
 }
 
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: -4px -4px 12px;
+  gap: 6px;
+}
+.nav-btn {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 11px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: background 80ms, color 80ms, border-color 80ms;
+}
+.nav-btn:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+  background: rgba(110,168,254,0.08);
+}
 .close-btn {
-  position: absolute;
-  top: 14px;
-  right: 18px;
   background: transparent;
   border: 0;
   color: var(--muted);
   cursor: pointer;
   font-size: 20px;
   line-height: 1;
-  padding: 0;
+  padding: 0 4px;
 }
 .close-btn:hover { color: var(--fg); }
 

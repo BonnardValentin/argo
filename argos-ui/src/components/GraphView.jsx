@@ -108,9 +108,9 @@ export default function GraphView({
     }
   }, [focusId, data.nodes, mode]);
 
-  // Bloom post-processing. Add on demand, remove when disabled. This is a
-  // side effect on the underlying three.js renderer; guarded so only one
-  // bloom pass is ever attached.
+  // Bloom post-processing. Much gentler than v1 — threshold 0.85 means only
+  // the very brightest pixels (node centers) bloom, instead of the whole
+  // scene washing out to white.
   useEffect(() => {
     if (mode !== '3d' || !fgRef.current) return undefined;
     const composer = fgRef.current.postProcessingComposer?.();
@@ -120,9 +120,9 @@ export default function GraphView({
     if (bloom) {
       bloomPass = new UnrealBloomPass(
         new THREE.Vector2(size.w, size.h),
-        1.6, // strength
-        0.6, // radius
-        0.0 // threshold — 0 means bloom everything bright
+        0.5, // strength (was 1.6 — too hot)
+        0.35, // radius
+        0.85 // threshold — only the brightest pixels bloom
       );
       composer.addPass(bloomPass);
     }
@@ -147,12 +147,9 @@ export default function GraphView({
     linkDirectionalArrowRelPos: 0.94,
     dagMode,
     dagLevelDistance: mode === '3d' ? 60 : 140,
-    onNodeClick: (n) => {
-      onSelect(n.id);
-      if (mode === '2d' && fgRef.current && typeof n.x === 'number') {
-        fgRef.current.centerAt(n.x, n.y, 400);
-      }
-    },
+    // Click just notifies; App.jsx re-routes through `focusId` so that
+    // direct node clicks and panel-link navigation animate identically.
+    onNodeClick: (n) => onSelect(n.id),
     onNodeHover: (n) => setHoverId(n ? n.id : null),
     cooldownTicks: 120,
     warmupTicks: 40,
@@ -202,8 +199,8 @@ export default function GraphView({
         width={size.w}
         height={size.h}
         {...shared}
-        nodeVal={(n) => (n.id === activeId ? 8 : 3)}
-        nodeOpacity={0.92}
+        nodeVal={(n) => (n.id === activeId ? 2.5 : 1)}
+        nodeOpacity={0.9}
         nodeResolution={16}
         nodeColor={(n) =>
           isNodeHighlighted(n.id) ? (TYPE_COLORS[n.group] || DEFAULT_COLOR) : '#3a3f4a'
