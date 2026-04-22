@@ -216,10 +216,11 @@ export default function App() {
                   <div
                     key={n.id}
                     className={`search-result ${i === activeResult ? 'active' : ''}`}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      pickResult(n);
-                    }}
+                    // onMouseDown only prevents the input from losing focus
+                    // on click. The actual navigation happens in onClick so
+                    // standard assistive tech works too.
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pickResult(n)}
                     onMouseEnter={() => setActiveResult(i)}
                   >
                     <span
