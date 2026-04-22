@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import GraphView, { TYPE_COLORS } from './components/GraphView.jsx';
 import NodePanel from './components/NodePanel.jsx';
+import Toolbar from './components/Toolbar.jsx';
 import { loadGraph } from './graph/loader.js';
 import { buildAdjacency, toGraphData } from './graph/transform.js';
 
@@ -10,6 +11,12 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [focusId, setFocusId] = useState(null);
   const [search, setSearch] = useState('');
+
+  // Viz state.
+  const [mode, setMode] = useState('2d');        // "2d" | "3d"
+  const [layout, setLayout] = useState('lr');    // "force" | "lr" | "td" | "radialout" | "zout"
+  const [showLabels, setShowLabels] = useState(true);
+  const [bloom, setBloom] = useState(true);
 
   useEffect(() => {
     loadGraph()
@@ -27,8 +34,7 @@ export default function App() {
   const navigate = (id) => {
     setSelectedId(id);
     setFocusId(id);
-    // Reset focusId so re-selecting the same node still retriggers recenter
-    // (the effect depends on focusId identity, not equality).
+    // Reset so selecting the same node again still retriggers the recenter.
     setTimeout(() => setFocusId(null), 50);
   };
 
@@ -56,9 +62,7 @@ export default function App() {
     );
   }
 
-  if (!data) {
-    return <div className="empty-state">Loading graph…</div>;
-  }
+  if (!data) return <div className="empty-state">Loading graph…</div>;
 
   if (data.nodes.length === 0) {
     return (
@@ -87,6 +91,10 @@ export default function App() {
 
         <GraphView
           data={data}
+          mode={mode}
+          layout={layout}
+          showLabels={showLabels}
+          bloom={bloom}
           onSelect={setSelectedId}
           selectedId={selectedId}
           focusId={focusId}
@@ -100,6 +108,18 @@ export default function App() {
             </div>
           ))}
         </div>
+
+        <Toolbar
+          mode={mode}
+          setMode={setMode}
+          layout={layout}
+          setLayout={setLayout}
+          showLabels={showLabels}
+          setShowLabels={setShowLabels}
+          bloom={bloom}
+          setBloom={setBloom}
+          stats={{ nodes: data.nodes.length, edges: data.links.length }}
+        />
       </div>
 
       {selected && (
