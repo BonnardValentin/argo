@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis/redis-stack:latest
+    container_name: argos-redis
+    ports:
+      - "6379:6379"
+      - "8001:8001"   # RedisInsight UI
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  redis-insight:
+    image: redis/redisinsight:latest
+    container_name: argos-redis-ui
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  redis_data:
