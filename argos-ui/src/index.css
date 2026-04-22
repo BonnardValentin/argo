@@ -167,15 +167,57 @@ body {
   padding: 20px 24px 32px;
   position: relative;
 }
+.node-panel .type-badge {
+  display: inline-block;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  margin-bottom: 10px;
+  opacity: 0.9;
+}
 .node-panel h1 {
-  font-size: 18px;
-  margin: 0 0 6px;
+  font-size: 17px;
+  line-height: 1.35;
+  margin: 0 0 10px;
   padding-right: 28px;
 }
+.node-panel .summary {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg);
+  background: rgba(110,168,254,0.07);
+  border-left: 2px solid var(--accent);
+  padding: 10px 12px;
+  margin: 0 0 14px;
+  border-radius: 0 4px 4px 0;
+}
 .node-panel .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   color: var(--muted);
-  font-size: 12px;
-  margin-bottom: 16px;
+  font-size: 11px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.node-panel .meta code {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  background: rgba(255,255,255,0.04);
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: var(--muted);
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .node-panel .md {

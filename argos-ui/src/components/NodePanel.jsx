@@ -1,7 +1,6 @@
 import ReactMarkdown from 'react-markdown';
+import { TYPE_COLORS } from './GraphView.jsx';
 
-// Render relations in a stable, spec-aligned order regardless of the
-// emission order in edges.json.
 const RELATION_ORDER = [
   'depends_on',
   'contradicts',
@@ -19,6 +18,75 @@ function groupByType(edges) {
     groups[k].sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
   }
   return groups;
+}
+
+// Strip the leading `# H1` from the markdown body so it doesn't duplicate
+// the title we're already showing in the panel header.
+function stripLeadingTitle(md, title) {
+  if (!md) return md;
+  const lines = md.split('\n');
+  // Skip leading blank lines.
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === '') i++;
+  if (i >= lines.length) return md;
+  const first = lines[i].trim();
+  if (!first.startsWith('# ') || first.startsWith('## ')) return md;
+  // Optional: only strip when it actually matches the node title, so we
+  // don't accidentally swallow an intentionally-different leading header.
+  const headerText = first.slice(2).trim();
+  if (title && headerText !== title.trim()) return md;
+  // Drop the H1 line + any blank lines immediately after it.
+  let j = i + 1;
+  while (j < lines.length && lines[j].trim() === '') j++;
+  return lines.slice(j).join('\n');
+}
+
+// Pull a one-sentence summary: first non-heading paragraph of the `## Decision`
+// section if present, else `## Context`, else the first paragraph of the body.
+function deriveSummary(md) {
+  if (!md) return '';
+  const sections = splitSections(md);
+  const candidates = ['Decision', 'Context', 'Why'];
+  for (const name of candidates) {
+    const text = sections[name];
+    if (text) {
+      const first = firstSentence(text);
+      if (first) return first;
+    }
+  }
+  // Fallback: first paragraph after any H1.
+  const lines = md.split('\n').filter((l) => !l.startsWith('#'));
+  const joined = lines.join('\n').trim();
+  return firstSentence(joined);
+}
+
+function splitSections(md) {
+  const out = {};
+  let current = null;
+  let buf = [];
+  for (const raw of md.split('\n')) {
+    const line = raw.trimEnd();
+    const m = line.match(/^##\s+(.+?)\s*$/);
+    if (m) {
+      if (current) out[current] = buf.join('\n').trim();
+      current = m[1];
+      buf = [];
+    } else if (current != null) {
+      buf.push(line);
+    }
+  }
+  if (current) out[current] = buf.join('\n').trim();
+  return out;
+}
+
+function firstSentence(text) {
+  const paragraph = text
+    .split(/\n\s*\n/)[0]
+    ?.replace(/\n/g, ' ')
+    .trim();
+  if (!paragraph) return '';
+  const m = paragraph.match(/^(.+?[.!?])(\s|$)/);
+  return (m ? m[1] : paragraph).trim();
 }
 
 function RelationList({ groups, direction, nodes, onNavigate }) {
@@ -78,6 +146,11 @@ export default function NodePanel({
   const hasRelations =
     Object.keys(outGroups).length > 0 || Object.keys(inGroups).length > 0;
 
+  const body = stripLeadingTitle(node.content || '', node.name);
+  const summary = deriveSummary(body);
+  const typeColor = TYPE_COLORS[node.group] || '#9ca3af';
+  const shortId = node.id.split('--')[0];
+
   return (
     <aside className="node-panel">
       <div className="panel-header">
@@ -102,17 +175,26 @@ export default function NodePanel({
           ×
         </button>
       </div>
-      <h1>{node.name}</h1>
-      <div className="meta">
+
+      <div className="type-badge" style={{ color: typeColor, borderColor: typeColor }}>
         {node.group}
-        {node.timestamp ? ` · ${node.timestamp.slice(0, 10)}` : ''}
-        {' · '}
-        <code>{node.id}</code>
+      </div>
+      <h1>{node.name}</h1>
+
+      {summary && <p className="summary">{summary}</p>}
+
+      <div className="meta">
+        {node.timestamp && (
+          <span className="meta-item">{node.timestamp.slice(0, 10)}</span>
+        )}
+        <span className="meta-item" title={node.id}>
+          <code>{shortId}</code>
+        </span>
       </div>
 
-      {node.content ? (
+      {body.trim() ? (
         <div className="md">
-          <ReactMarkdown>{node.content}</ReactMarkdown>
+          <ReactMarkdown>{body}</ReactMarkdown>
         </div>
       ) : (
         <div className="md" style={{ color: 'var(--muted)' }}>
