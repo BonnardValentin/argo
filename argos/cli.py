@@ -94,6 +94,85 @@ def ingest_github(
     console.print(f"[bold]kept[/bold] {kept}  [dim]dropped[/dim] {dropped}")
 
 
+@ingest_app.command("local")
+def ingest_local(
+    path: Annotated[Path, typer.Argument(help="Path to a local repository root")],
+    max_items: Annotated[
+        int,
+        typer.Option("--max", help="Cap on docs to process (0 = unlimited)."),
+    ] = 0,
+    include: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--include",
+            help="Extra glob patterns (relative to repo root). Repeatable.",
+        ),
+    ] = None,
+    max_bytes: Annotated[
+        int,
+        typer.Option(
+            "--max-bytes",
+            help="Truncate docs larger than this (default 200 KB).",
+        ),
+    ] = 200_000,
+) -> None:
+    """Scan a local repo for docs (README, ARCHITECTURE, CLAUDE.md, docs/**,
+    ADRs, …), extract structured knowledge, write markdown.
+
+    Point at a checked-out repository root; the extractor decides what's
+    signal. Idempotent — nodes with the same source ref overwrite in place.
+    """
+    from argos.ingestion.local_docs import DEFAULT_PATTERNS, LocalDocsIngestor
+
+    if not settings.anthropic_api_key:
+        console.print(
+            "[red]ANTHROPIC_API_KEY not set[/red] — copy .env.example to .env"
+        )
+        raise typer.Exit(code=2)
+
+    root = path.expanduser().resolve()
+    if not root.is_dir():
+        console.print(f"[red]not a directory:[/red] {root}")
+        raise typer.Exit(code=2)
+
+    patterns = DEFAULT_PATTERNS + tuple(include or ())
+    ingestor = LocalDocsIngestor(root, patterns=patterns, max_bytes=max_bytes)
+    extractor = Extractor(settings.anthropic_api_key, settings.extraction_model)
+
+    table = Table(title=f"Ingest local docs: {root}")
+    table.add_column("ref")
+    table.add_column("result")
+
+    kept = 0
+    dropped = 0
+    cap = max_items if max_items > 0 else None
+
+    for artifact in ingestor.iter_docs(max_items=cap):
+        try:
+            node = extractor.extract(artifact)
+        except Exception as exc:  # noqa: BLE001 — CLI should keep going
+            table.add_row(artifact.source.ref or "?", f"[red]error: {exc}[/red]")
+            continue
+        if node is None:
+            dropped += 1
+            table.add_row(artifact.source.ref or "?", "[dim]noise[/dim]")
+            continue
+        out_path = write_node(settings.data_dir, node)
+        kept += 1
+        rel = (
+            out_path.relative_to(settings.data_dir.parent.parent)
+            if out_path.is_relative_to(settings.data_dir.parent.parent)
+            else out_path
+        )
+        table.add_row(
+            artifact.source.ref or "?",
+            f"[green]{node.type.value}[/green] → {rel}",
+        )
+
+    console.print(table)
+    console.print(f"[bold]kept[/bold] {kept}  [dim]dropped[/dim] {dropped}")
+
+
 @app.command("show")
 def show(
     node_id: Annotated[str, typer.Argument(help="Node id (filename stem or substring)")],

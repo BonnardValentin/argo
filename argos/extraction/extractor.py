@@ -10,9 +10,16 @@ from argos.models import KnowledgeNode, KnowledgeType, RawArtifact
 
 SYSTEM_PROMPT = """You are the extraction stage of a knowledge graph pipeline.
 
-Your job: look at one raw artifact (a PR, issue, Slack thread, or commit) and
-decide if it carries genuine engineering signal worth preserving — a decision,
-a non-trivial discussion, an incident, or a lasting note.
+Your job: look at one raw artifact (a PR, issue, Slack thread, commit, or a
+local doc like README / ARCHITECTURE / CLAUDE.md / an ADR) and decide if it
+carries genuine engineering signal worth preserving — a decision, a
+non-trivial discussion, an incident, or a lasting note.
+
+For local docs specifically: a README that is purely install/API reference is
+NOISE. An ARCHITECTURE.md that explains *why* a design was chosen is SIGNAL.
+An ADR is almost always a decision. CLAUDE.md / AGENTS.md usually captures
+ground-truth project conventions and is signal. When a doc covers many
+decisions, extract the dominant one and flag the rest in open_questions.
 
 Hard filter: most artifacts are NOISE. Typo fixes, dependency bumps, cosmetic
 refactors, rubber-stamp approvals, "LGTM" threads — all noise. When in doubt,
@@ -101,13 +108,13 @@ class Extractor:
             id=node_id,
             type=KnowledgeType(data.get("type", "note")),
             title=data.get("title", artifact.title)[:200],
-            context=data.get("context", ""),
-            decision=data.get("decision", ""),
-            why=data.get("why", ""),
-            how=data.get("how", ""),
-            tradeoffs=data.get("tradeoffs", []) or [],
-            alternatives=data.get("alternatives", []) or [],
-            open_questions=data.get("open_questions", []) or [],
+            context=_as_str(data.get("context")),
+            decision=_as_str(data.get("decision")),
+            why=_as_str(data.get("why")),
+            how=_as_str(data.get("how")),
+            tradeoffs=_as_str_list(data.get("tradeoffs")),
+            alternatives=_as_str_list(data.get("alternatives")),
+            open_questions=_as_str_list(data.get("open_questions")),
             timestamp=timestamp,
             sources=[artifact.source],
         )
@@ -138,6 +145,24 @@ def _render_artifact(artifact: RawArtifact) -> str:
         lines.append("--- Metadata ---")
         lines.append(json.dumps(other, default=str, indent=2))
     return "\n".join(lines)
+
+
+def _as_str(value: object) -> str:
+    """Coerce a model-returned field into a string. None/non-str → ""."""
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _as_str_list(value: object) -> list[str]:
+    """Coerce a model-returned field into list[str]. Anything weird → []."""
+    if isinstance(value, list):
+        return [str(item) for item in value if item not in (None, "")]
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    return []
 
 
 def _make_id(artifact: RawArtifact, title: str) -> str:
