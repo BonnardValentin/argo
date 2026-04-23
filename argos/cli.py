@@ -373,6 +373,116 @@ def _decision_preview(path: Path) -> str:
     return " ".join(non_blank)
 
 
+@ingest_app.command("code")
+def ingest_code(
+    path: Annotated[Path, typer.Argument(help="Path to a local repository root")],
+    max_items: Annotated[
+        int,
+        typer.Option("--max", help="Cap on artifacts to process (0 = unlimited)."),
+    ] = 0,
+    per_block: Annotated[
+        bool,
+        typer.Option(
+            "--per-block/--per-file",
+            help=(
+                "Emit one artifact per comment block instead of one per file. "
+                "Higher fidelity, more LLM calls."
+            ),
+        ),
+    ] = False,
+    min_chars: Annotated[
+        int,
+        typer.Option(
+            "--min-chars",
+            help="Minimum comment body length to consider (default 120).",
+        ),
+    ] = 120,
+    extensions: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--ext",
+            help=(
+                "Restrict to these file extensions (e.g. --ext .ts --ext .yml). "
+                "Dot optional. Repeatable. Default: all supported languages."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Extract substantive comments from source files (TS/JS, Python, Go,
+    Rust, Ansible YAML, Terraform HCL, shell, …), run them through the
+    extractor, write markdown.
+
+    Per-file mode (default): one artifact per file whose comments pass the
+    substance filter. Per-block mode: one artifact per comment block —
+    higher fidelity at roughly 10-20x the LLM spend.
+    """
+    from argos.ingestion.code_comments import COMMENT_RULES, CommentExtractor
+
+    if not settings.anthropic_api_key:
+        console.print(
+            "[red]ANTHROPIC_API_KEY not set[/red] — copy .env.example to .env"
+        )
+        raise typer.Exit(code=2)
+
+    root = path.expanduser().resolve()
+    if not root.is_dir():
+        console.print(f"[red]not a directory:[/red] {root}")
+        raise typer.Exit(code=2)
+
+    # Normalise extensions (with or without leading dot, case-insensitive).
+    exts: tuple[str, ...] | None = None
+    if extensions:
+        exts = tuple(
+            (e if e.startswith(".") else f".{e}").lower() for e in extensions
+        )
+        unknown = [e for e in exts if e not in COMMENT_RULES]
+        if unknown:
+            console.print(
+                f"[yellow]warning:[/yellow] no comment rules for {', '.join(unknown)}"
+            )
+
+    ext_obj = CommentExtractor(
+        root,
+        extensions=exts,
+        per_block=per_block,
+        min_chars=min_chars,
+    )
+    extractor = Extractor(settings.anthropic_api_key, settings.extraction_model)
+
+    table = Table(title=f"Ingest code comments: {root}")
+    table.add_column("ref")
+    table.add_column("result")
+
+    kept = 0
+    dropped = 0
+    cap = max_items if max_items > 0 else None
+
+    for artifact in ext_obj.iter_artifacts(max_items=cap):
+        try:
+            node = extractor.extract(artifact)
+        except Exception as exc:  # noqa: BLE001 — CLI should keep going
+            table.add_row(artifact.source.ref or "?", f"[red]error: {exc}[/red]")
+            continue
+        if node is None:
+            dropped += 1
+            table.add_row(artifact.source.ref or "?", "[dim]noise[/dim]")
+            continue
+        out_path = write_node(settings.data_dir, node)
+        kept += 1
+        rel = (
+            out_path.relative_to(settings.data_dir.parent.parent)
+            if out_path.is_relative_to(settings.data_dir.parent.parent)
+            else out_path
+        )
+        table.add_row(
+            artifact.source.ref or "?",
+            f"[green]{node.type.value}[/green] → {rel}",
+        )
+
+    console.print(table)
+    console.print(f"[bold]kept[/bold] {kept}  [dim]dropped[/dim] {dropped}")
+
+
 @app.command("export")
 def export_cmd(
     out: Annotated[
